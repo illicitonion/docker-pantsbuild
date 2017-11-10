@@ -1,14 +1,29 @@
+# Copyright 2017 Pants project contributors (see CONTRIBUTORS.md).
+# Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+# Use the standard python-2.7 docker Debian Wheezy image for binary compatibility with old linux
+# distros.
 FROM python:2.7.13-wheezy
 
-RUN bash -c "pushd /tmp && \
- curl -O https://cmake.org/files/v3.8/cmake-3.8.0.tar.gz && \
- tar xzf cmake-3.8.0.tar.gz && cd cmake-3.8.0 && \
- ./configure && make && make install && \
- popd && \
- rm -rf /tmp/cmake-3.8.0 /tmp/cmake-3.8.0.tar.gz"
+# Ensure Pants runs under the 2.7.13 interpreter.
+ENV PANTS_PYTHON_SETUP_INTERPRETER_CONSTRAINTS="['CPython==2.7.13']"
 
-RUN bash -c "tar -C /usr/local -xzf <(curl https://binaries.pantsbuild.org/bin/go/linux/x86_64/1.7.6/go.tar.gz)"
+# Install various things Pants requires.
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y default-jdk
 
-ENV PATH="${PATH}:/usr/local/go/bin"
+# Setup mount points for the travis ci user & workdir.
+VOLUME /travis/home
+VOLUME /travis/workdir
 
-CMD bash
+# Setup a non-root user to execute the build under (avoids problems with npm install).
+ARG TRAVIS_USER=travis_ci
+ARG TRAVIS_UID=1000
+ARG TRAVIS_GROUP=root
+ARG TRAVIS_GID=0
+
+RUN groupadd --gid ${TRAVIS_GID} ${TRAVIS_GROUP}
+RUN useradd -d /travis/home -g ${TRAVIS_GROUP} --uid ${TRAVIS_UID} ${TRAVIS_USER}
+USER ${TRAVIS_USER}:${TRAVIS_GROUP}
+
+WORKDIR /travis/workdir
